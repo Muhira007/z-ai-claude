@@ -135,9 +135,12 @@ function Invoke-Setup {
   Write-Say "Claude Code will run against Z.ai's GLM-5.2 API."
   Write-Say 'You only need to enter your key once.'
   Write-Say ''
-  Write-Say 'Get a key:'
-  Write-Say '  - GLM Coding Plan: https://z.ai/model-api'
-  Write-Say '  - API keys:        https://open.bigmodel.cn/usercenter/apikeys'
+  Write-Say 'Get a key from https://open.bigmodel.cn/usercenter/apikeys'
+  Write-Say ''
+  Write-Say 'The API key format is: {API Key ID}.{secret}'
+  Write-Say 'Example: 7f501c44249140f4b547ca9388560910.FHwTpVemIb9DTjDB'
+  Write-Say ''
+  Write-Say 'WARNING: Keep your key secure. Z.ai auto-revokes publicly exposed keys.'
   Write-Say ''
   for ($i = 0; $i -lt 3; $i++) {
     $secure = Read-Host -AsSecureString 'Z.ai API key'

@@ -132,9 +132,12 @@ interactive_setup() {
   say "Claude Code will run against Z.ai's GLM-5.2 API."
   say "You only need to enter your key once."
   say ""
-  say "Get a key:"
-  say "  • GLM Coding Plan: https://z.ai/model-api"
-  say "  • API keys:        https://open.bigmodel.cn/usercenter/apikeys"
+  say "Get a key from https://open.bigmodel.cn/usercenter/apikeys"
+  say ""
+  say "The API key format is: {API Key ID}.{secret}"
+  say "Example: 7f501c44249140f4b547ca9388560910.FHwTpVemIb9DTjDB"
+  say ""
+  say "⚠  Keep your key secure. Z.ai auto-revokes publicly exposed keys."
   say ""
   local key="" tries=0
   while :; do

@@ -477,14 +477,25 @@ zcl "refactor module auth menjadi lebih clean"
 
 ### Cara mendapatkan Z.ai API Key
 
-1. Buka [Z.ai Model API](https://z.ai/model-api) untuk **GLM Coding Plan**
-2. Atau buka [open.bigmodel.cn/usercenter/apikeys](https://open.bigmodel.cn/usercenter/apikeys)
-3. Login atau daftar akun Zhipu AI / Z.ai
-4. Buat API key baru
-5. Masukkan saat prompt `zcl` pertama kali
+1. Buka [open.bigmodel.cn/usercenter/apikeys](https://open.bigmodel.cn/usercenter/apikeys)
+2. Login atau daftar akun **Zhipu AI / Z.ai**
+3. Klik **"Buat API Key baru"** (atau "Create new API key")
+4. Platform akan menampilkan dua informasi:
+   - **API Key ID** — 32 karakter hex (contoh: `7f501c44249140f4b547ca9388560910`)
+   - **API Key** — gabungan `{API Key ID}.{secret}` (contoh: `7f501c44...0910.FHwTpVemIb9DTjDB`)
+5. **Salin API Key lengkap** (format `{ID}.{secret}`) — ini yang dibutuhkan `zcl`
+6. Masukkan saat prompt `zcl` pertama kali, atau via:
+   ```bash
+   zcl config "7f501c44249140f4b547ca9388560910.FHwTpVemIb9DTjDB"
+   ```
 
-> 💡 **GLM Coding Plan** memberikan akses ke endpoint coding khusus dengan
-> performa optimal untuk Claude Code dan tools serupa.
+> ⚠️ **Penting:** Z.ai akan mendeteksi API key yang terekspos publik dan dapat
+> otomatis merotasi/mencabutnya. Simpan key dengan aman, jangan dibagikan di
+> browser atau client-side code.
+>
+> 💡 **GLM Coding Plan** di [z.ai/model-api](https://z.ai/model-api) memberikan
+> akses ke endpoint coding khusus (`/api/coding/paas/v4`) dengan performa
+> optimal untuk Claude Code dan tools serupa.
 
 ---
 
