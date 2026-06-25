@@ -111,7 +111,7 @@ teardown() {
   "$ZCL" config "model.Glm52TestKey2024AbcXyz" 2>/dev/null
   run "$ZCL" --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *"glm-5.2[1m]"* ]]
+  [[ "$output" == *"glm-5.2"* ]]
 }
 
 @test "zcl uses glm-4.7 for haiku/subagent" {

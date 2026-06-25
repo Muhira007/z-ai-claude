@@ -18,7 +18,7 @@ CONFIG_FILE="$CONFIG_DIR/config"
 
 # --- defaults ----------------------------------------------------------------
 # Based on official Z.ai docs: https://docs.z.ai/devpack/tool/claude
-DEFAULT_OPUS_SONNET_MODEL="glm-5.2[1m]"
+DEFAULT_OPUS_SONNET_MODEL="glm-5.2"
 DEFAULT_HAIKU_MODEL="glm-4.7"
 DEFAULT_TIMEOUT_MS="3000000"        # 50 min — recommended for long-thinking tasks
 DEFAULT_AUTO_COMPACT="1000000"      # 1M — match GLM-5.2 context window
@@ -208,7 +208,7 @@ ENVIRONMENT VARIABLES
   ZAI_API_KEY                   Z.ai API key (saved automatically on first use)
   ZCL_SAFE=1                    Same as --safe (skip --dangerously-skip-permissions)
   ZCL_VERBOSE=1                 Same as --verbose
-  ZCL_OPUS_SONNET_MODEL         Opus/Sonnet model (default: glm-5.2[1m])
+  ZCL_OPUS_SONNET_MODEL         Opus/Sonnet model (default: glm-5.2)
   ZCL_HAIKU_MODEL               Haiku model (default: glm-4.7)
   ZCL_TIMEOUT_MS                API timeout in ms (default: 3000000 = 50 min)
   ZCL_AUTO_COMPACT              Auto-compact window (default: 1000000)
@@ -218,7 +218,7 @@ CONFIG FILE
   Format: KEY=VALUE (one per line)
 
   Customize models in the config file:
-    ZCL_OPUS_SONNET_MODEL=glm-5.2[1m]
+    ZCL_OPUS_SONNET_MODEL=glm-5.2
     ZCL_HAIKU_MODEL=glm-4.7
     ZCL_TIMEOUT_MS=3000000
     ZCL_AUTO_COMPACT=1000000

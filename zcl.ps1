@@ -16,7 +16,7 @@ $Script:ConfigFile   = Join-Path $Script:ConfigDir 'config'
 
 # --- defaults ----------------------------------------------------------------
 # Based on official Z.ai docs: https://docs.z.ai/devpack/tool/claude
-$Script:DefaultOpusSonnet  = 'glm-5.2[1m]'
+$Script:DefaultOpusSonnet  = 'glm-5.2'
 $Script:DefaultHaikuModel  = 'glm-4.7'
 $Script:DefaultTimeoutMs   = '3000000'
 $Script:DefaultAutoCompact = '1000000'
@@ -196,7 +196,7 @@ ENVIRONMENT VARIABLES
   ZAI_API_KEY                   Z.ai API key (saved automatically on first use)
   ZCL_SAFE=1                    Same as --safe
   ZCL_VERBOSE=1                 Same as --verbose
-  ZCL_OPUS_SONNET_MODEL         Opus/Sonnet model (default: glm-5.2[1m])
+  ZCL_OPUS_SONNET_MODEL         Opus/Sonnet model (default: glm-5.2)
   ZCL_HAIKU_MODEL               Haiku model (default: glm-4.7)
   ZCL_TIMEOUT_MS                API timeout in ms (default: 3000000 = 50 min)
   ZCL_AUTO_COMPACT              Auto-compact window (default: 1000000)
