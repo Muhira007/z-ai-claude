@@ -51,4 +51,4 @@ jobs:
         run: bash zcl --version
       - name: Smoke test --dry-run
         run: |
-          ZAI_API_KEY="fake-key-12345" bash zcl --dry-run
+          ZAI_API_KEY="fake.abcdefghijklmnopqrstuvwxyz123" bash zcl --dry-run

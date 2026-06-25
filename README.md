@@ -358,7 +358,7 @@ Environment Variable > Config File > Default Bawaan
 Edit `~/.config/zcl/config`:
 
 ```ini
-ZAI_API_KEY=your-key-here
+ZAI_API_KEY=your-id.your-secret
 ZCL_MODEL=glm-5.2[1m]
 ZCL_HAIKU_MODEL=GLM-5-Turbo
 ZCL_SUBAGENT_MODEL=GLM-5-Turbo

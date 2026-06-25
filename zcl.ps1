@@ -76,7 +76,8 @@ function Save-Key {
     Write-ErrorX 'Refusing to save an empty key.'
   }
   if (-not (Test-KeyFormat $Key)) {
-    Write-Warn "Key format looks unusual for a Z.ai API key."
+    Write-Warn 'Z.ai keys should follow the format: {API Key ID}.{secret}'
+    Write-Warn 'Example: abc123xyz.abcdefghijklmnopqrstuvwxyz'
     Write-Warn 'Saving anyway, but it may not work.'
   }
   Write-Config 'ZAI_API_KEY' $Key
@@ -90,8 +91,9 @@ function Get-Key {
 # --- key validation ----------------------------------------------------------
 function Test-KeyFormat {
   param([string]$Key)
-  # Z.ai keys are alphanumeric strings at least 8 chars
-  return ($Key.Length -ge 8 -and $Key -match '^[a-zA-Z0-9._-]+$')
+  # Z.ai keys follow the format: {API Key ID}.{secret}
+  # Both parts are alphanumeric strings separated by a dot.
+  return ($Key -match '^[a-zA-Z0-9]+\.[a-zA-Z0-9]+$')
 }
 
 function Test-KeyApi {
@@ -145,7 +147,7 @@ function Invoke-Setup {
     $key = $key.Trim()
     if ($key) {
       if (-not (Test-KeyFormat $key)) {
-        Write-Warn "Key should be at least 8 alphanumeric characters. Please double-check."
+        Write-Warn 'Key should be in format: {API Key ID}.{secret} (e.g. abc123.xyz789)'
       }
       Save-Key $key
       Write-Say ''

@@ -38,21 +38,21 @@ teardown() {
 # --- config management --------------------------------------------------------
 
 @test "zcl config saves key to config file" {
-  run "$ZCL" config "my-test-key-12345"
+  run "$ZCL" config "k1.a1B2c3D4e5F6g7H8i9J0kL1M2"
   [ "$status" -eq 0 ]
   [ -f "$CONFIG_FILE" ]
-  grep -q "ZAI_API_KEY=my-test-key-12345" "$CONFIG_FILE"
+  grep -q "ZAI_API_KEY=k1.a1B2c3D4e5F6g7H8i9J0kL1M2" "$CONFIG_FILE"
 }
 
 @test "zcl change-key updates an existing key" {
-  "$ZCL" config "old-key-12345"
-  run "$ZCL" change-key "new-key-67890"
+  "$ZCL" config "old.aBcDeFgHiJkLmNoPqRsTuVwXyZ"
+  run "$ZCL" change-key "new.Z9y8x7w6v5u4t3s2r1q0p"
   [ "$status" -eq 0 ]
-  grep -q "ZAI_API_KEY=new-key-67890" "$CONFIG_FILE"
+  grep -q "ZAI_API_KEY=new.Z9y8x7w6v5u4t3s2r1q0p" "$CONFIG_FILE"
 }
 
 @test "zcl reset removes config file" {
-  "$ZCL" config "test-key-12345"
+  "$ZCL" config "t1.a1B2c3D4e5F6g7H8i9J0"
   run "$ZCL" reset
   [ "$status" -eq 0 ]
   [ ! -f "$CONFIG_FILE" ]
@@ -64,7 +64,7 @@ teardown() {
 }
 
 @test "zcl show-config prints config info" {
-  "$ZCL" config "test-key-show-12345"
+  "$ZCL" config "show.a1b2c3d4e5f6g7h8i9j0"
   run "$ZCL" show-config
   [ "$status" -eq 0 ]
   [[ "$output" == *"Config file"* ]]
@@ -74,7 +74,7 @@ teardown() {
 # --- key format validation ----------------------------------------------------
 
 @test "validate_key_format accepts valid keys" {
-  run "$ZCL" config "validKey123"
+  run "$ZCL" config "v1.abcdefghijklmnopqrstuvwxyz"
   [ "$status" -eq 0 ]
 }
 
@@ -87,7 +87,7 @@ teardown() {
 # --- dry run ------------------------------------------------------------------
 
 @test "zcl --dry-run prints expected output" {
-  "$ZCL" config "dry-run-key-12345" 2>/dev/null
+  "$ZCL" config "dry.a1b2c3d4e5f6g7h8i9j0k1l2m3" 2>/dev/null
   run "$ZCL" --dry-run
   [ "$status" -eq 0 ]
   [[ "$output" == *"ANTHROPIC_BASE_URL"* ]]
@@ -99,7 +99,7 @@ teardown() {
 }
 
 @test "zcl --dry-run --safe shows safe mode" {
-  "$ZCL" config "test-safe-12345" 2>/dev/null
+  "$ZCL" config "safe.Z9Y8X7W6V5U4T3S2R1Q0" 2>/dev/null
   run "$ZCL" --dry-run --safe
   [ "$status" -eq 0 ]
   [[ "$output" == *"permission prompts"* ]]
@@ -108,14 +108,14 @@ teardown() {
 # --- model defaults -----------------------------------------------------------
 
 @test "zcl uses GLM-5.2 as default model" {
-  "$ZCL" config "test-model-12345" 2>/dev/null
+  "$ZCL" config "model.Glm52TestKey2024AbcXyz" 2>/dev/null
   run "$ZCL" --dry-run
   [ "$status" -eq 0 ]
   [[ "$output" == *"glm-5.2[1m]"* ]]
 }
 
 @test "zcl uses GLM-5-Turbo for haiku/subagent" {
-  "$ZCL" config "test-haiku-12345" 2>/dev/null
+  "$ZCL" config "haiku.TurboFastKey99XyzAbc" 2>/dev/null
   run "$ZCL" --dry-run
   [ "$status" -eq 0 ]
   [[ "$output" == *"GLM-5-Turbo"* ]]
@@ -124,7 +124,7 @@ teardown() {
 # --- environment variable override --------------------------------------------
 
 @test "ZCL_MODEL env var overrides default" {
-  "$ZCL" config "test-env-12345" 2>/dev/null
+  "$ZCL" config "env.CustomModelTestKey123" 2>/dev/null
   ZCL_MODEL="custom-model" run "$ZCL" --dry-run
   [ "$status" -eq 0 ]
   [[ "$output" == *"custom-model"* ]]
@@ -133,7 +133,7 @@ teardown() {
 # --- passthrough args ---------------------------------------------------------
 
 @test "zcl passes through arguments to claude" {
-  "$ZCL" config "test-args-12345" 2>/dev/null
+  "$ZCL" config "args.T3stP4ssThr0ughK3y987" 2>/dev/null
   run "$ZCL" --dry-run "tell me a joke"
   [ "$status" -eq 0 ]
   [[ "$output" == *"tell me a joke"* ]]

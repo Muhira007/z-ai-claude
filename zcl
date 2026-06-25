@@ -79,7 +79,8 @@ save_key() {
     die "Refusing to save an empty key."
   fi
   if ! validate_key_format "$key"; then
-    warn "Key format looks unusual for a Z.ai API key."
+    warn "Z.ai keys should follow the format: {API Key ID}.{secret}"
+    warn "Example: abc123xyz.abcdefghijklmnopqrstuvwxyz"
     warn "Saving anyway, but it may not work."
   fi
   write_config "ZAI_API_KEY" "$key"
@@ -93,8 +94,9 @@ read_key() {
 # --- key validation ----------------------------------------------------------
 validate_key_format() {
   local key="$1"
-  # Z.ai keys are alphanumeric strings; be permissive but reject obvious garbage
-  [[ "${#key}" -ge 8 && "$key" =~ ^[a-zA-Z0-9._-]+$ ]] && return 0
+  # Z.ai keys follow the format: {API Key ID}.{secret}
+  # Both parts are alphanumeric strings separated by a dot.
+  [[ "$key" =~ ^[a-zA-Z0-9]+\.[a-zA-Z0-9]+$ ]] && return 0
   return 1
 }
 
@@ -139,7 +141,7 @@ interactive_setup() {
     key="$(trim "$(read_secret 'Z.ai API key: ')")"
     if [ -n "$key" ]; then
       if ! validate_key_format "$key"; then
-        warn "Key should be at least 8 alphanumeric characters. Please double-check."
+        warn "Key should be in format: {API Key ID}.{secret} (e.g. abc123.xyz789)"
         say ""
       fi
       break
