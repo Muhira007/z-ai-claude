@@ -477,8 +477,8 @@ zcl "refactor module auth menjadi lebih clean"
 
 ### Cara mendapatkan Z.ai API Key
 
-1. Buka [open.bigmodel.cn/usercenter/apikeys](https://open.bigmodel.cn/usercenter/apikeys)
-2. Login atau daftar akun **Zhipu AI / Z.ai**
+1. **Buat akun** di [z.ai](https://z.ai) — klik **Sign Up** dan lengkapi pendaftaran
+2. Setelah akun aktif, buka [z.ai/manage-apikey/apikey-list](https://z.ai/manage-apikey/apikey-list)
 3. Klik **"Buat API Key baru"** (atau "Create new API key")
 4. Platform akan menampilkan dua informasi:
    - **API Key ID** — 32 karakter hex (contoh: `a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6`)

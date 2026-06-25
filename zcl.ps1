@@ -135,7 +135,8 @@ function Invoke-Setup {
   Write-Say "Claude Code will run against Z.ai's GLM-5.2 API."
   Write-Say 'You only need to enter your key once.'
   Write-Say ''
-  Write-Say 'Get a key from https://open.bigmodel.cn/usercenter/apikeys'
+  Write-Say '1. Buat akun di https://z.ai'
+  Write-Say '2. Setelah login, buka https://z.ai/manage-apikey/apikey-list'
   Write-Say ''
   Write-Say 'The API key format is: {API Key ID}.{secret}'
   Write-Say 'Example: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6.AbCdEfGhIjKlMnOpQrStUvWxYz112233'
