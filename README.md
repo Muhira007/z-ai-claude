@@ -481,12 +481,12 @@ zcl "refactor module auth menjadi lebih clean"
 2. Login atau daftar akun **Zhipu AI / Z.ai**
 3. Klik **"Buat API Key baru"** (atau "Create new API key")
 4. Platform akan menampilkan dua informasi:
-   - **API Key ID** — 32 karakter hex (contoh: `7f501c44249140f4b547ca9388560910`)
-   - **API Key** — gabungan `{API Key ID}.{secret}` (contoh: `7f501c44...0910.FHwTpVemIb9DTjDB`)
+   - **API Key ID** — 32 karakter hex (contoh: `a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6`)
+   - **API Key** — gabungan `{API Key ID}.{secret}` (contoh: `a1b2c3d4...c5d6.AbCdEfGhIjKlMnOpQrStUvWxYz112233`)
 5. **Salin API Key lengkap** (format `{ID}.{secret}`) — ini yang dibutuhkan `zcl`
 6. Masukkan saat prompt `zcl` pertama kali, atau via:
    ```bash
-   zcl config "7f501c44249140f4b547ca9388560910.FHwTpVemIb9DTjDB"
+   zcl config "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6.AbCdEfGhIjKlMnOpQrStUvWxYz112233"
    ```
 
 > ⚠️ **Penting:** Z.ai akan mendeteksi API key yang terekspos publik dan dapat

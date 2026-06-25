@@ -138,7 +138,7 @@ function Invoke-Setup {
   Write-Say 'Get a key from https://open.bigmodel.cn/usercenter/apikeys'
   Write-Say ''
   Write-Say 'The API key format is: {API Key ID}.{secret}'
-  Write-Say 'Example: 7f501c44249140f4b547ca9388560910.FHwTpVemIb9DTjDB'
+  Write-Say 'Example: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6.AbCdEfGhIjKlMnOpQrStUvWxYz112233'
   Write-Say ''
   Write-Say 'WARNING: Keep your key secure. Z.ai auto-revokes publicly exposed keys.'
   Write-Say ''
