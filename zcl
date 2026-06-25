@@ -17,11 +17,10 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zcl"
 CONFIG_FILE="$CONFIG_DIR/config"
 
 # --- defaults ----------------------------------------------------------------
-DEFAULT_MODEL="glm-5.2[1m]"
-DEFAULT_HAIKU_MODEL="GLM-5-Turbo"
-DEFAULT_SUBAGENT_MODEL="GLM-5-Turbo"
-DEFAULT_EFFORT="max"
-DEFAULT_TIMEOUT_MS="3000000"        # 50 min — recommended for long-thinking GLM-5.2 tasks
+# Based on official Z.ai docs: https://docs.z.ai/devpack/tool/claude
+DEFAULT_OPUS_SONNET_MODEL="glm-5.2[1m]"
+DEFAULT_HAIKU_MODEL="glm-4.7"
+DEFAULT_TIMEOUT_MS="3000000"        # 50 min — recommended for long-thinking tasks
 DEFAULT_AUTO_COMPACT="1000000"      # 1M — match GLM-5.2 context window
 
 # --- helpers -----------------------------------------------------------------
@@ -209,22 +208,20 @@ ENVIRONMENT VARIABLES
   ZAI_API_KEY                   Z.ai API key (saved automatically on first use)
   ZCL_SAFE=1                    Same as --safe (skip --dangerously-skip-permissions)
   ZCL_VERBOSE=1                 Same as --verbose
-  ZCL_MODEL                     Default model (default: glm-5.2[1m])
-  ZCL_HAIKU_MODEL               Haiku/fast model (default: GLM-5-Turbo)
-  ZCL_SUBAGENT_MODEL            Subagent model (default: GLM-5-Turbo)
-  ZCL_EFFORT                    Effort level (default: max)
+  ZCL_OPUS_SONNET_MODEL         Opus/Sonnet model (default: glm-5.2[1m])
+  ZCL_HAIKU_MODEL               Haiku model (default: glm-4.7)
   ZCL_TIMEOUT_MS                API timeout in ms (default: 3000000 = 50 min)
+  ZCL_AUTO_COMPACT              Auto-compact window (default: 1000000)
 
 CONFIG FILE
   Path:  ~/.config/zcl/config   (chmod 600)
   Format: KEY=VALUE (one per line)
 
   Customize models in the config file:
-    ZCL_MODEL=glm-5.2[1m]
-    ZCL_HAIKU_MODEL=GLM-5-Turbo
-    ZCL_SUBAGENT_MODEL=GLM-5-Turbo
-    ZCL_EFFORT=max
+    ZCL_OPUS_SONNET_MODEL=glm-5.2[1m]
+    ZCL_HAIKU_MODEL=glm-4.7
     ZCL_TIMEOUT_MS=3000000
+    ZCL_AUTO_COMPACT=1000000
     ZCL_SAFE=1
 
   Or set them per-session as environment variables.
@@ -237,7 +234,6 @@ EXAMPLES
   zcl config <your-key>            # Set key without interactive prompt
   zcl verify                       # Check if your stored key works
   zcl show-config                  # See current settings
-  ZCL_MODEL=glm-5.2 zcl "prompt"  # Override model for one session
 EOF
   exit 0
 }
@@ -255,23 +251,19 @@ show_config() {
   echo "Safe mode   : ${ZCL_SAFE:-$saved_safe}"
   echo "---"
   echo "Model overrides (from config or env):"
-  echo "  MODEL        : ${ZCL_MODEL:-$(read_config "ZCL_MODEL" 2>/dev/null || echo "$DEFAULT_MODEL")}"
-  echo "  HAIKU_MODEL  : ${ZCL_HAIKU_MODEL:-$(read_config "ZCL_HAIKU_MODEL" 2>/dev/null || echo "$DEFAULT_HAIKU_MODEL")}"
-  echo "  SUBAGENT     : ${ZCL_SUBAGENT_MODEL:-$(read_config "ZCL_SUBAGENT_MODEL" 2>/dev/null || echo "$DEFAULT_SUBAGENT_MODEL")}"
-  echo "  EFFORT       : ${ZCL_EFFORT:-$(read_config "ZCL_EFFORT" 2>/dev/null || echo "$DEFAULT_EFFORT")}"
+  echo "  OPUS/SONNET  : ${ZCL_OPUS_SONNET_MODEL:-$(read_config "ZCL_OPUS_SONNET_MODEL" 2>/dev/null || echo "$DEFAULT_OPUS_SONNET_MODEL")}"
+  echo "  HAIKU        : ${ZCL_HAIKU_MODEL:-$(read_config "ZCL_HAIKU_MODEL" 2>/dev/null || echo "$DEFAULT_HAIKU_MODEL")}"
   echo "  TIMEOUT_MS   : ${ZCL_TIMEOUT_MS:-$(read_config "ZCL_TIMEOUT_MS" 2>/dev/null || echo "$DEFAULT_TIMEOUT_MS")}"
   exit 0
 }
 
 # --- dry run -----------------------------------------------------------------
 do_dry_run() {
-  local key safe_mode model haiku_model subagent_model effort timeout_ms autocompact
+  local key safe_mode opus_sonnet haiku_model timeout_ms autocompact
   key="$(read_key || true)"
   safe_mode="${ZCL_SAFE:-$(read_config "ZCL_SAFE" 2>/dev/null || echo "0")}"
-  model="${ZCL_MODEL:-$(read_config "ZCL_MODEL" 2>/dev/null || echo "$DEFAULT_MODEL")}"
+  opus_sonnet="${ZCL_OPUS_SONNET_MODEL:-$(read_config "ZCL_OPUS_SONNET_MODEL" 2>/dev/null || echo "$DEFAULT_OPUS_SONNET_MODEL")}"
   haiku_model="${ZCL_HAIKU_MODEL:-$(read_config "ZCL_HAIKU_MODEL" 2>/dev/null || echo "$DEFAULT_HAIKU_MODEL")}"
-  subagent_model="${ZCL_SUBAGENT_MODEL:-$(read_config "ZCL_SUBAGENT_MODEL" 2>/dev/null || echo "$DEFAULT_SUBAGENT_MODEL")}"
-  effort="${ZCL_EFFORT:-$(read_config "ZCL_EFFORT" 2>/dev/null || echo "$DEFAULT_EFFORT")}"
   timeout_ms="${ZCL_TIMEOUT_MS:-$(read_config "ZCL_TIMEOUT_MS" 2>/dev/null || echo "$DEFAULT_TIMEOUT_MS")}"
   autocompact="${ZCL_AUTO_COMPACT:-$(read_config "ZCL_AUTO_COMPACT" 2>/dev/null || echo "$DEFAULT_AUTO_COMPACT")}"
 
@@ -281,16 +273,16 @@ do_dry_run() {
   echo ""
   echo "Would set these environment variables:"
   echo ""
-  printf "  %-36s %s\n" "ANTHROPIC_BASE_URL" "https://api.z.ai/api/coding/paas/v4"
+  printf "  %-36s %s\n" "ANTHROPIC_BASE_URL" "https://api.z.ai/api/anthropic"
   printf "  %-36s %s\n" "ANTHROPIC_AUTH_TOKEN" "${key:+(hidden, ${#key} chars)}"
-  printf "  %-36s %s\n" "ANTHROPIC_MODEL" "$model"
-  printf "  %-36s %s\n" "ANTHROPIC_DEFAULT_OPUS_MODEL" "$model"
-  printf "  %-36s %s\n" "ANTHROPIC_DEFAULT_SONNET_MODEL" "$model"
+  printf "  %-36s %s\n" "ANTHROPIC_DEFAULT_OPUS_MODEL" "$opus_sonnet"
+  printf "  %-36s %s\n" "ANTHROPIC_DEFAULT_SONNET_MODEL" "$opus_sonnet"
   printf "  %-36s %s\n" "ANTHROPIC_DEFAULT_HAIKU_MODEL" "$haiku_model"
-  printf "  %-36s %s\n" "CLAUDE_CODE_SUBAGENT_MODEL" "$subagent_model"
-  printf "  %-36s %s\n" "CLAUDE_CODE_EFFORT_LEVEL" "$effort"
   printf "  %-36s %s\n" "API_TIMEOUT_MS" "$timeout_ms"
   printf "  %-36s %s\n" "CLAUDE_CODE_AUTO_COMPACT_WINDOW" "$autocompact"
+  echo ""
+  echo "Note: Use /effort inside Claude Code to set reasoning effort."
+  echo "      GLM-5.2 maps: low/med/high->high, xhigh/max/ultracode->max"
   echo ""
   if [ "$safe_mode" = "1" ]; then
     echo "Would run: claude $*"
@@ -437,18 +429,14 @@ debug "Key resolved (${#KEY} chars)"
 
 # --- resolve model overrides -------------------------------------------------
 # Priority: env var > config file > built-in default
-MODEL="${ZCL_MODEL:-$(read_config "ZCL_MODEL" 2>/dev/null || echo "$DEFAULT_MODEL")}"
+OPUS_SONNET="${ZCL_OPUS_SONNET_MODEL:-$(read_config "ZCL_OPUS_SONNET_MODEL" 2>/dev/null || echo "$DEFAULT_OPUS_SONNET_MODEL")}"
 HAIKU_MODEL="${ZCL_HAIKU_MODEL:-$(read_config "ZCL_HAIKU_MODEL" 2>/dev/null || echo "$DEFAULT_HAIKU_MODEL")}"
-SUBAGENT_MODEL="${ZCL_SUBAGENT_MODEL:-$(read_config "ZCL_SUBAGENT_MODEL" 2>/dev/null || echo "$DEFAULT_SUBAGENT_MODEL")}"
-EFFORT="${ZCL_EFFORT:-$(read_config "ZCL_EFFORT" 2>/dev/null || echo "$DEFAULT_EFFORT")}"
 TIMEOUT_MS="${ZCL_TIMEOUT_MS:-$(read_config "ZCL_TIMEOUT_MS" 2>/dev/null || echo "$DEFAULT_TIMEOUT_MS")}"
 AUTO_COMPACT="${ZCL_AUTO_COMPACT:-$(read_config "ZCL_AUTO_COMPACT" 2>/dev/null || echo "$DEFAULT_AUTO_COMPACT")}"
 SAFE_MODE="${ZCL_SAFE:-$(read_config "ZCL_SAFE" 2>/dev/null || echo "0")}"
 
-debug "MODEL=$MODEL"
+debug "OPUS_SONNET=$OPUS_SONNET"
 debug "HAIKU_MODEL=$HAIKU_MODEL"
-debug "SUBAGENT_MODEL=$SUBAGENT_MODEL"
-debug "EFFORT=$EFFORT"
 debug "TIMEOUT_MS=$TIMEOUT_MS"
 debug "AUTO_COMPACT=$AUTO_COMPACT"
 debug "SAFE_MODE=$SAFE_MODE"
@@ -463,20 +451,17 @@ if ! command -v claude >/dev/null 2>&1; then
   die "claude CLI not found on PATH.\nInstall Claude Code first: https://docs.claude.com/en/docs/claude-code"
 fi
 
-export ANTHROPIC_BASE_URL="https://api.z.ai/api/coding/paas/v4"
+# Env vars based on official Z.ai docs: https://docs.z.ai/devpack/tool/claude
+export ANTHROPIC_BASE_URL="https://api.z.ai/api/anthropic"
 export ANTHROPIC_AUTH_TOKEN="$KEY"
-export ANTHROPIC_MODEL="$MODEL"
-export ANTHROPIC_DEFAULT_OPUS_MODEL="$MODEL"
-export ANTHROPIC_DEFAULT_SONNET_MODEL="$MODEL"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="$OPUS_SONNET"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="$OPUS_SONNET"
 export ANTHROPIC_DEFAULT_HAIKU_MODEL="$HAIKU_MODEL"
-export CLAUDE_CODE_SUBAGENT_MODEL="$SUBAGENT_MODEL"
-export CLAUDE_CODE_EFFORT_LEVEL="$EFFORT"
 export API_TIMEOUT_MS="$TIMEOUT_MS"
 export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$AUTO_COMPACT"
 
 debug "Environment variables set. Launching claude..."
 debug "ANTHROPIC_BASE_URL=$ANTHROPIC_BASE_URL"
-debug "ANTHROPIC_MODEL=$ANTHROPIC_MODEL"
 debug "API_TIMEOUT_MS=$API_TIMEOUT_MS"
 
 if [ "$SAFE_MODE" = "1" ]; then

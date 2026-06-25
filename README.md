@@ -35,7 +35,7 @@ API Anthropic (`https://api.anthropic.com`). Namun, Claude Code mendukung
 Z.ai menyediakan endpoint yang **kompatibel dengan protokol Anthropic** di:
 
 ```
-https://api.z.ai/api/coding/paas/v4
+https://api.z.ai/api/anthropic
 ```
 
 Artinya, Z.ai "berpura-pura" menjadi server Anthropic — menerima request
@@ -65,10 +65,10 @@ Claude Code.
                                                            ▼
                                               ┌────────────────────────┐
                                               │  api.z.ai              │
-                                              │  /api/coding/paas/v4   │
+                                              │  /api/anthropic   │
                                               │                        │
                                               │  Model: glm-5.2[1m]    │
-                                              │  Model: GLM-5-Turbo    │
+                                              │  Model: glm-4.7    │
                                               └────────────────────────┘
 ```
 
@@ -77,7 +77,7 @@ Claude Code.
 | Komponen | Peran |
 |----------|-------|
 | **Claude Code CLI** | Binary resmi Anthropic — mengirim request ke API, mengelola tool calls, menampilkan UI terminal |
-| **Z.ai API** | Menyediakan endpoint `/api/coding/paas/v4` yang menerima dan merespon dalam format Anthropic Messages API |
+| **Z.ai API** | Menyediakan endpoint `/api/anthropic` yang menerima dan merespon dalam format Anthropic Messages API |
 | **Zcl Script** | Shell script tipis yang menyetel env vars sebelum menjalankan `claude` |
 
 Claude Code **tidak tahu** bahwa ia sedang berbicara dengan Z.ai, bukan
@@ -101,12 +101,12 @@ graph TB
     end
 
     subgraph "Internet"
-        F -->|HTTPS| G["api.z.ai/api/coding/paas/v4"]
+        F -->|HTTPS| G["api.z.ai/api/anthropic"]
     end
 
     subgraph "Z.ai Cloud"
         G --> H[GLM-5.2<br/>744B MoE · 1M context]
-        G --> I[GLM-5-Turbo<br/>200K context]
+        G --> I[glm-4.7<br/>200K context]
     end
 
     H -->|5. streaming response| E
@@ -123,7 +123,7 @@ sequenceDiagram
     participant CF as Config File<br/>~/.config/zcl/config
     participant ENV as Environment
     participant CC as claude CLI
-    participant ZAI as Z.ai API<br/>api.z.ai/api/coding/paas/v4
+    participant ZAI as Z.ai API<br/>api.z.ai/api/anthropic
 
     U->>ZC: zcl "tulis kalkulator"
 
@@ -140,7 +140,7 @@ sequenceDiagram
         ZC->>CF: simpan key
     end
 
-    ZC->>ENV: set ANTHROPIC_BASE_URL="api.z.ai/api/coding/paas/v4"
+    ZC->>ENV: set ANTHROPIC_BASE_URL="api.z.ai/api/anthropic"
     ZC->>ENV: set ANTHROPIC_AUTH_TOKEN="key-xxxxxxxx"
     ZC->>ENV: set ANTHROPIC_MODEL="glm-5.2[1m]"
     ZC->>ENV: set API_TIMEOUT_MS="3000000"
@@ -149,7 +149,7 @@ sequenceDiagram
     ZC->>CC: exec claude --dangerously-skip-permissions "tulis kalkulator"
 
     loop Percakapan Claude Code
-        CC->>ZAI: POST /api/coding/paas/v4/messages<br/>(Anthropic Messages API format)
+        CC->>ZAI: POST /api/anthropic/messages<br/>(Anthropic Messages API format)
         ZAI-->>CC: streaming response<br/>(model: glm-5.2)
         CC-->>U: tampilkan response di terminal
     end
@@ -245,29 +245,29 @@ flowchart LR
 
 | Variable | Nilai Default | Fungsi |
 |----------|--------------|--------|
-| `ANTHROPIC_BASE_URL` | `https://api.z.ai/api/coding/paas/v4` | Mengarahkan Claude Code ke endpoint Z.ai |
+| `ANTHROPIC_BASE_URL` | `https://api.z.ai/api/anthropic` | Mengarahkan Claude Code ke endpoint Z.ai |
 | `ANTHROPIC_AUTH_TOKEN` | `<Z.ai API key>` | Otentikasi ke Z.ai API |
-| `ANTHROPIC_MODEL` | `glm-5.2[1m]` | Model default |
-| `ANTHROPIC_DEFAULT_OPUS_MODEL` | *(sama dengan MODEL)* | Pengganti Claude Opus 4 |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL` | *(sama dengan MODEL)* | Pengganti Claude Sonnet 4 |
-| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `GLM-5-Turbo` | Pengganti Claude Haiku (lebih cepat & ringan) |
-| `CLAUDE_CODE_SUBAGENT_MODEL` | `GLM-5-Turbo` | Model untuk sub-agent (task ringan) |
-| `CLAUDE_CODE_EFFORT_LEVEL` | `max` | Effort reasoning maksimum |
-| `API_TIMEOUT_MS` | `3000000` | Timeout 50 menit — diperlukan untuk long-thinking GLM-5.2 |
-| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `1000000` | Window auto-compact 1M — cocok dengan context GLM-5.2 |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL` | `glm-5.2[1m]` | Pengganti Claude Opus 4 |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | `glm-5.2[1m]` | Pengganti Claude Sonnet 4 |
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `glm-4.7` | Pengganti Claude Haiku |
+| `API_TIMEOUT_MS` | `3000000` | Timeout 50 menit — untuk long-thinking GLM-5.2 |
+| `CLAUDE_CODE_AUTO_COMPACT_WINDOW` | `1000000` | Auto-compact 1M — cocok context GLM-5.2 |
 
+> ⚠️ `ANTHROPIC_MODEL` **tidak diset** — Z.ai merekomendasikan hanya menggunakan
+> variabel tier-specific (`DEFAULT_OPUS/SONNET/HAIKU`). Effort reasoning
+> diatur via command `/effort` di dalam Claude Code session.
+>
 > ⚠️ `API_TIMEOUT_MS=3000000` (50 menit) direkomendasikan oleh Z.ai untuk
-> menghindari request yang terputus saat GLM-5.2 melakukan long-thinking pada
-> task coding yang kompleks.
+> menghindari request yang terputus saat long-thinking.
 
 ### Pemetaan Model Claude → GLM
 
 ```mermaid
 graph LR
     subgraph "Model Claude (Original)"
-        A1[Claude Opus 4<br/>Paling pintar, lambat]
-        A2[Claude Sonnet 4<br/>Seimbang]
-        A3[Claude Haiku 4<br/>Cepat, ringan]
+        A1[Claude Opus 4]
+        A2[Claude Sonnet 4]
+        A3[Claude Haiku 4]
     end
 
     subgraph "Pemetaan zcl"
@@ -277,8 +277,8 @@ graph LR
     end
 
     subgraph "Model Z.ai GLM"
-        C1["glm-5.2[1m]<br/>744B MoE (40B aktif), 1M context"]
-        C2["GLM-5-Turbo<br/>200K context, lebih cepat"]
+        C1["glm-5.2[1m]<br/>744B MoE · 1M context"]
+        C2["glm-4.7<br/>357B · 200K context"]
     end
 
     A1 --> B1 --> C1
@@ -286,19 +286,17 @@ graph LR
     A3 --> B3 --> C2
 ```
 
-> **Catatan:** GLM-5.2 tidak memiliki varian "flash" resmi. Untuk role Haiku dan
-> sub-agent, `GLM-5-Turbo` digunakan sebagai alternatif yang lebih cepat namun
-> tetap dalam keluarga model GLM-5.x.
+> **Catatan:** Mengikuti rekomendasi resmi Z.ai. GLM-5.2 untuk task berat
+> (Opus/Sonnet), GLM-4.7 untuk task ringan (Haiku). Gunakan `/effort` di
+> dalam session Claude Code untuk mengatur reasoning effort.
 
 ### Variabel yang dibaca oleh Zcl (bisa di-set user)
 
 | Variable | Fungsi |
 |----------|--------|
 | `ZAI_API_KEY` | API key Z.ai (auto-disimpan saat pertama digunakan) |
-| `ZCL_MODEL` | Override model default |
-| `ZCL_HAIKU_MODEL` | Override model Haiku/Turbo |
-| `ZCL_SUBAGENT_MODEL` | Override model sub-agent |
-| `ZCL_EFFORT` | Override effort level (`high` atau `max`) |
+| `ZCL_OPUS_SONNET_MODEL` | Override model Opus/Sonnet |
+| `ZCL_HAIKU_MODEL` | Override model Haiku |
 | `ZCL_TIMEOUT_MS` | Override API timeout (default: 3000000) |
 | `ZCL_AUTO_COMPACT` | Override auto-compact window (default: 1000000) |
 | `ZCL_SAFE=1` | Sama dengan flag `--safe` |
@@ -359,10 +357,8 @@ Edit `~/.config/zcl/config`:
 
 ```ini
 ZAI_API_KEY=your-id.your-secret
-ZCL_MODEL=glm-5.2[1m]
-ZCL_HAIKU_MODEL=GLM-5-Turbo
-ZCL_SUBAGENT_MODEL=GLM-5-Turbo
-ZCL_EFFORT=max
+ZCL_OPUS_SONNET_MODEL=glm-5.2[1m]
+ZCL_HAIKU_MODEL=glm-4.7
 ZCL_TIMEOUT_MS=3000000
 ZCL_AUTO_COMPACT=1000000
 ZCL_SAFE=0
@@ -371,13 +367,11 @@ ZCL_SAFE=0
 ### Via Environment Variable (per-sesi)
 
 ```bash
-# Override model utama untuk satu sesi
-ZCL_MODEL="glm-5.2" zcl "tulis kode"
+# Override model Opus/Sonnet untuk satu sesi
+ZCL_OPUS_SONNET_MODEL="glm-5.2" zcl "tulis kode"
 
-# Override beberapa sekaligus
-ZCL_HAIKU_MODEL="GLM-4.7-FlashX" \
-ZCL_EFFORT="high" \
-zcl --safe "review dokumentasi"
+# Override Haiku model
+ZCL_HAIKU_MODEL="glm-4.7" zcl --safe "review dokumentasi"
 ```
 
 ### Model Z.ai yang Tersedia (untuk Coding)
@@ -385,15 +379,12 @@ zcl --safe "review dokumentasi"
 | Model ID | Karakteristik | Context |
 |----------|--------------|---------|
 | `glm-5.2[1m]` | **Flagship**, reasoning terkuat, 1M context | 1M |
-| `glm-5.2` | Sama, tanpa suffix 1M | 1M |
-| `GLM-5-Turbo` | Varian cepat GLM-5, cocok untuk sub-agent | 200K |
+| `glm-5.2` | Tanpa suffix [1m] | 1M |
+| `glm-4.7` | Varian cepat GLM-5, cocok untuk sub-agent | 200K |
 | `GLM-5.1` | Generasi sebelumnya, 200K context | 200K |
-| `GLM-4.7-FlashX` | Sangat murah (30B), alternatif hemat | 200K |
+| `glm-4.7` | Sangat murah (30B), alternatif hemat | 200K |
 | `GLM-4.7-Flash` | **Gratis** (30B), untuk task sangat ringan | 200K |
 
-> ⚠️ GLM-5.2 **tidak memiliki varian "flash" resmi**. Untuk task ringan, gunakan
-> `GLM-5-Turbo` (direkomendasikan) atau `GLM-4.7-FlashX` (lebih murah).
->
 > Cek [z.ai/model-api](https://z.ai/model-api) dan [docs.z.ai](https://docs.z.ai/guides/overview/pricing)
 > untuk model terbaru.
 
@@ -494,7 +485,7 @@ zcl "refactor module auth menjadi lebih clean"
 > browser atau client-side code.
 >
 > 💡 **GLM Coding Plan** di [z.ai/model-api](https://z.ai/model-api) memberikan
-> akses ke endpoint coding khusus (`/api/coding/paas/v4`) dengan performa
+> akses ke endpoint coding khusus (`/api/anthropic`) dengan performa
 > optimal untuk Claude Code dan tools serupa.
 
 ---
@@ -644,17 +635,17 @@ Lihat [CONTRIBUTING.md](CONTRIBUTING.md) untuk panduan lengkap.
 ### Kenapa tidak ada model "flash" untuk GLM-5.2?
 
 GLM-5.2 adalah model flagship Z.ai (744B MoE, 40B aktif per token). Z.ai belum
-merilis varian "flash" untuk generasi 5.2. Untuk task ringan, `GLM-5-Turbo`
+merilis varian "flash" untuk generasi 5.2. Untuk task ringan, `glm-4.7`
 digunakan sebagai alternatif.
 
-### Apa beda endpoint `/api/anthropic` vs `/api/coding/paas/v4`?
+### Apa beda endpoint `/api/anthropic` vs `/api/anthropic`?
 
 | Endpoint | Kegunaan |
 |----------|----------|
 | `/api/anthropic` | General Anthropic Messages API — untuk semua tools |
-| `/api/coding/paas/v4` | **Coding Plan** khusus — dioptimalkan untuk Claude Code, Cline, dll |
+| `/api/anthropic` | **Coding Plan** khusus — dioptimalkan untuk Claude Code, Cline, dll |
 
-Zcl menggunakan `/api/coding/paas/v4` karena dioptimalkan untuk coding.
+Zcl menggunakan `/api/anthropic` karena dioptimalkan untuk coding.
 
 ### Kenapa timeout diset ke 50 menit?
 

@@ -93,7 +93,7 @@ teardown() {
   [[ "$output" == *"ANTHROPIC_BASE_URL"* ]]
   [[ "$output" == *"api.z.ai"* ]]
   [[ "$output" == *"glm-5.2"* ]]
-  [[ "$output" == *"GLM-5-Turbo"* ]]
+  [[ "$output" == *"glm-4.7"* ]]
   [[ "$output" == *"API_TIMEOUT_MS"* ]]
   [[ "$output" == *"CLAUDE_CODE_AUTO_COMPACT_WINDOW"* ]]
 }
@@ -114,11 +114,11 @@ teardown() {
   [[ "$output" == *"glm-5.2[1m]"* ]]
 }
 
-@test "zcl uses GLM-5-Turbo for haiku/subagent" {
+@test "zcl uses glm-4.7 for haiku/subagent" {
   "$ZCL" config "haiku.TurboFastKey99XyzAbc" 2>/dev/null
   run "$ZCL" --dry-run
   [ "$status" -eq 0 ]
-  [[ "$output" == *"GLM-5-Turbo"* ]]
+  [[ "$output" == *"glm-4.7"* ]]
 }
 
 # --- environment variable override --------------------------------------------
