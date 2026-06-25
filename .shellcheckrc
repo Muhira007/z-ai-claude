@@ -1,0 +1,5 @@
+# shellcheck configuration for zcl
+disable=SC2034,SC2155
+
+# Allow common external binaries
+external-sources=true

@@ -1,0 +1,481 @@
+#!/usr/bin/env bash
+#
+# zcl — run Claude Code against Z.ai's GLM-5.2 Anthropic-compatible API.
+#
+# Key resolution order:
+#   1. `zcl config [KEY]`            — set/replace the stored key (inline or prompt)
+#   2. stored config file            — set on a previous run
+#   3. ZAI_API_KEY env var           — used and saved for next time
+#   4. interactive prompt            — asks for the key if you haven't included it yet
+#
+set -euo pipefail
+
+VERSION="1.0.0"
+
+# --- paths -------------------------------------------------------------------
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/zcl"
+CONFIG_FILE="$CONFIG_DIR/config"
+
+# --- defaults ----------------------------------------------------------------
+DEFAULT_MODEL="glm-5.2[1m]"
+DEFAULT_HAIKU_MODEL="GLM-5-Turbo"
+DEFAULT_SUBAGENT_MODEL="GLM-5-Turbo"
+DEFAULT_EFFORT="max"
+DEFAULT_TIMEOUT_MS="3000000"        # 50 min — recommended for long-thinking GLM-5.2 tasks
+DEFAULT_AUTO_COMPACT="1000000"      # 1M — match GLM-5.2 context window
+
+# --- helpers -----------------------------------------------------------------
+say()   { printf '%s\n' "$*" >&2; }
+die()   { say "ERROR: $*"; exit 1; }
+warn()  { say "WARNING: $*"; }
+debug() { [ "${ZCL_VERBOSE:-0}" = "1" ] && say "[DEBUG] $*" || true; }
+
+trim() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+# --- config file I/O ---------------------------------------------------------
+# Read a key from the config file. Usage: read_config KEY_NAME
+read_config() {
+  local want="$1"
+  [ -f "$CONFIG_FILE" ] || return 1
+  local line
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      "${want}="*) printf '%s' "${line#"${want}="}"; return 0 ;;
+    esac
+  done < "$CONFIG_FILE"
+  return 1
+}
+
+# Write/update a key=value pair in the config file.
+write_config() {
+  local key="$1" value="$2"
+  mkdir -p "$CONFIG_DIR"
+  if [ -f "$CONFIG_FILE" ] && grep -q "^${key}=" "$CONFIG_FILE" 2>/dev/null; then
+    # Update existing key
+    local tmp; tmp="$(mktemp)"
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        "${key}="*) printf '%s=%s\n' "$key" "$value" ;;
+        *) printf '%s\n' "$line" ;;
+      esac
+    done < "$CONFIG_FILE" > "$tmp"
+    mv "$tmp" "$CONFIG_FILE"
+  else
+    # Append new key
+    printf '%s=%s\n' "$key" "$value" >> "$CONFIG_FILE"
+  fi
+  chmod 600 "$CONFIG_FILE" 2>/dev/null || true
+}
+
+save_key() {
+  local key
+  key="$(trim "$1")"
+  if [ -z "$key" ]; then
+    die "Refusing to save an empty key."
+  fi
+  if ! validate_key_format "$key"; then
+    warn "Key format looks unusual for a Z.ai API key."
+    warn "Saving anyway, but it may not work."
+  fi
+  write_config "ZAI_API_KEY" "$key"
+  say "Key saved to $CONFIG_FILE"
+}
+
+read_key() {
+  read_config "ZAI_API_KEY" 2>/dev/null || true
+}
+
+# --- key validation ----------------------------------------------------------
+validate_key_format() {
+  local key="$1"
+  # Z.ai keys are alphanumeric strings; be permissive but reject obvious garbage
+  [[ "${#key}" -ge 8 && "$key" =~ ^[a-zA-Z0-9._-]+$ ]] && return 0
+  return 1
+}
+
+verify_key_api() {
+  local key="$1"
+  say "Verifying API key..."
+  if ! command -v curl >/dev/null 2>&1; then
+    warn "curl not found; skipping API validation."
+    return 2
+  fi
+  local http_code
+  http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+    --max-time 10 \
+    -H "Authorization: Bearer ${key}" \
+    "https://api.z.ai/api/paas/v4/models" 2>/dev/null || echo "000")
+
+  case "$http_code" in
+    200) say "✓ API key is valid."; return 0 ;;
+    401) say "✗ API key is invalid or expired (HTTP 401)."; return 1 ;;
+    403) say "✗ API key lacks permissions (HTTP 403)."; return 1 ;;
+    000) warn "Could not reach Z.ai API (network error)."; return 2 ;;
+    *)   warn "Unexpected response (HTTP $http_code). Key may still work."; return 2 ;;
+  esac
+}
+
+# --- interactive setup -------------------------------------------------------
+interactive_setup() {
+  say ""
+  say "┌──────────────────────────────────────────┐"
+  say "│  zcl · first-time setup                  │"
+  say "└──────────────────────────────────────────┘"
+  say ""
+  say "Claude Code will run against Z.ai's GLM-5.2 API."
+  say "You only need to enter your key once."
+  say ""
+  say "Get a key:"
+  say "  • GLM Coding Plan: https://z.ai/model-api"
+  say "  • API keys:        https://open.bigmodel.cn/usercenter/apikeys"
+  say ""
+  local key="" tries=0
+  while :; do
+    key="$(trim "$(read_secret 'Z.ai API key: ')")"
+    if [ -n "$key" ]; then
+      if ! validate_key_format "$key"; then
+        warn "Key should be at least 8 alphanumeric characters. Please double-check."
+        say ""
+      fi
+      break
+    fi
+    tries=$((tries + 1))
+    say "Key can't be empty."
+    if [ "$tries" -ge 3 ]; then
+      die "Aborting after 3 empty attempts."
+    fi
+  done
+  save_key "$key"
+  say ""
+  say "Key saved. Verifying..."
+  verify_key_api "$key" || true
+  say ""
+}
+
+# Read a secret from the terminal; fall back to stdin if /dev/tty is unusable.
+read_secret() {
+  local prompt="$1" value=""
+  printf '%s' "$prompt" >&2
+  if IFS= read -rs value 2>/dev/null < /dev/tty; then
+    :
+  else
+    IFS= read -rs value || true
+  fi
+  printf '\n' >&2
+  printf '%s' "$value"
+}
+
+# --- help --------------------------------------------------------------------
+show_help() {
+  cat <<'EOF'
+zcl — run Claude Code against Z.ai's GLM-5.2 Anthropic-compatible API.
+
+USAGE
+  zcl [FLAGS] [--] [ARGUMENTS...]
+
+FLAGS
+  --help, help       Show this help message
+  --version          Show version number
+  --dry-run          Print what would be executed, without running Claude Code
+  --verbose          Print debug information during execution
+  --safe             Run WITHOUT --dangerously-skip-permissions (more prompts)
+
+SUBCOMMANDS
+  zcl config [KEY]       Set or change the stored API key
+  zcl change-key [KEY]   Alias for config
+  zcl reset              Delete the stored API key
+  zcl update             Update to the latest version
+  zcl verify             Verify the stored API key against Z.ai API
+  zcl show-config        Print current configuration (key masked)
+
+KEY RESOLUTION ORDER
+  1. zcl config <KEY>
+  2. Stored config file (~/.config/zcl/config)
+  3. ZAI_API_KEY environment variable (auto-saved on use)
+  4. Interactive prompt
+
+ENVIRONMENT VARIABLES
+  ZAI_API_KEY                   Z.ai API key (saved automatically on first use)
+  ZCL_SAFE=1                    Same as --safe (skip --dangerously-skip-permissions)
+  ZCL_VERBOSE=1                 Same as --verbose
+  ZCL_MODEL                     Default model (default: glm-5.2[1m])
+  ZCL_HAIKU_MODEL               Haiku/fast model (default: GLM-5-Turbo)
+  ZCL_SUBAGENT_MODEL            Subagent model (default: GLM-5-Turbo)
+  ZCL_EFFORT                    Effort level (default: max)
+  ZCL_TIMEOUT_MS                API timeout in ms (default: 3000000 = 50 min)
+
+CONFIG FILE
+  Path:  ~/.config/zcl/config   (chmod 600)
+  Format: KEY=VALUE (one per line)
+
+  Customize models in the config file:
+    ZCL_MODEL=glm-5.2[1m]
+    ZCL_HAIKU_MODEL=GLM-5-Turbo
+    ZCL_SUBAGENT_MODEL=GLM-5-Turbo
+    ZCL_EFFORT=max
+    ZCL_TIMEOUT_MS=3000000
+    ZCL_SAFE=1
+
+  Or set them per-session as environment variables.
+
+EXAMPLES
+  zcl                              # First run: enter key, then start
+  zcl "refactor this module"       # Pass a prompt to Claude Code
+  zcl --safe "rm -rf ./build"      # Run with permission prompts enabled
+  zcl --dry-run --verbose          # Preview what will be set
+  zcl config <your-key>            # Set key without interactive prompt
+  zcl verify                       # Check if your stored key works
+  zcl show-config                  # See current settings
+  ZCL_MODEL=glm-5.2 zcl "prompt"  # Override model for one session
+EOF
+  exit 0
+}
+
+# --- show config -------------------------------------------------------------
+show_config() {
+  local key saved_safe
+  key="$(read_key || true)"
+  saved_safe="$(read_config "ZCL_SAFE" 2>/dev/null || echo "0")"
+
+  echo "Config file : $CONFIG_FILE"
+  echo "Config dir  : $CONFIG_DIR"
+  echo "---"
+  echo "API key     : ${key:+(stored, ${#key} chars)}"
+  echo "Safe mode   : ${ZCL_SAFE:-$saved_safe}"
+  echo "---"
+  echo "Model overrides (from config or env):"
+  echo "  MODEL        : ${ZCL_MODEL:-$(read_config "ZCL_MODEL" 2>/dev/null || echo "$DEFAULT_MODEL")}"
+  echo "  HAIKU_MODEL  : ${ZCL_HAIKU_MODEL:-$(read_config "ZCL_HAIKU_MODEL" 2>/dev/null || echo "$DEFAULT_HAIKU_MODEL")}"
+  echo "  SUBAGENT     : ${ZCL_SUBAGENT_MODEL:-$(read_config "ZCL_SUBAGENT_MODEL" 2>/dev/null || echo "$DEFAULT_SUBAGENT_MODEL")}"
+  echo "  EFFORT       : ${ZCL_EFFORT:-$(read_config "ZCL_EFFORT" 2>/dev/null || echo "$DEFAULT_EFFORT")}"
+  echo "  TIMEOUT_MS   : ${ZCL_TIMEOUT_MS:-$(read_config "ZCL_TIMEOUT_MS" 2>/dev/null || echo "$DEFAULT_TIMEOUT_MS")}"
+  exit 0
+}
+
+# --- dry run -----------------------------------------------------------------
+do_dry_run() {
+  local key safe_mode model haiku_model subagent_model effort timeout_ms autocompact
+  key="$(read_key || true)"
+  safe_mode="${ZCL_SAFE:-$(read_config "ZCL_SAFE" 2>/dev/null || echo "0")}"
+  model="${ZCL_MODEL:-$(read_config "ZCL_MODEL" 2>/dev/null || echo "$DEFAULT_MODEL")}"
+  haiku_model="${ZCL_HAIKU_MODEL:-$(read_config "ZCL_HAIKU_MODEL" 2>/dev/null || echo "$DEFAULT_HAIKU_MODEL")}"
+  subagent_model="${ZCL_SUBAGENT_MODEL:-$(read_config "ZCL_SUBAGENT_MODEL" 2>/dev/null || echo "$DEFAULT_SUBAGENT_MODEL")}"
+  effort="${ZCL_EFFORT:-$(read_config "ZCL_EFFORT" 2>/dev/null || echo "$DEFAULT_EFFORT")}"
+  timeout_ms="${ZCL_TIMEOUT_MS:-$(read_config "ZCL_TIMEOUT_MS" 2>/dev/null || echo "$DEFAULT_TIMEOUT_MS")}"
+  autocompact="${ZCL_AUTO_COMPACT:-$(read_config "ZCL_AUTO_COMPACT" 2>/dev/null || echo "$DEFAULT_AUTO_COMPACT")}"
+
+  echo "═══════════════════════════════════════════════"
+  echo "  zcl dry-run"
+  echo "═══════════════════════════════════════════════"
+  echo ""
+  echo "Would set these environment variables:"
+  echo ""
+  printf "  %-36s %s\n" "ANTHROPIC_BASE_URL" "https://api.z.ai/api/coding/paas/v4"
+  printf "  %-36s %s\n" "ANTHROPIC_AUTH_TOKEN" "${key:+(hidden, ${#key} chars)}"
+  printf "  %-36s %s\n" "ANTHROPIC_MODEL" "$model"
+  printf "  %-36s %s\n" "ANTHROPIC_DEFAULT_OPUS_MODEL" "$model"
+  printf "  %-36s %s\n" "ANTHROPIC_DEFAULT_SONNET_MODEL" "$model"
+  printf "  %-36s %s\n" "ANTHROPIC_DEFAULT_HAIKU_MODEL" "$haiku_model"
+  printf "  %-36s %s\n" "CLAUDE_CODE_SUBAGENT_MODEL" "$subagent_model"
+  printf "  %-36s %s\n" "CLAUDE_CODE_EFFORT_LEVEL" "$effort"
+  printf "  %-36s %s\n" "API_TIMEOUT_MS" "$timeout_ms"
+  printf "  %-36s %s\n" "CLAUDE_CODE_AUTO_COMPACT_WINDOW" "$autocompact"
+  echo ""
+  if [ "$safe_mode" = "1" ]; then
+    echo "Would run: claude $*"
+  else
+    echo "Would run: claude --dangerously-skip-permissions $*"
+  fi
+  echo ""
+  if [ "$safe_mode" != "1" ]; then
+    echo "⚠  --dangerously-skip-permissions is ENABLED (use --safe to disable)"
+  else
+    echo "✓  Safe mode: tools will require per-action approval"
+  fi
+  exit 0
+}
+
+# --- subcommands -------------------------------------------------------------
+handle_subcommand() {
+  case "${1:-}" in
+    config|--config|set-key|--set-key|change|--change|change-key|--change-key)
+      if [ "${2:-}" != "" ]; then
+        save_key "$2"
+      else
+        interactive_setup
+      fi
+      say "Done. Run 'zcl' to start."
+      exit 0
+      ;;
+    reset|--reset)
+      if [ -f "$CONFIG_FILE" ]; then
+        rm -f "$CONFIG_FILE"
+        say "Stored key removed ($CONFIG_FILE)."
+      else
+        say "No stored key to remove."
+      fi
+      exit 0
+      ;;
+    update|--update|upgrade|--upgrade)
+      say "Updating zcl to the latest version..."
+      curl -fsSL "https://raw.githubusercontent.com/Muhira007/z-ai-claude/main/install.sh" | bash
+      exit $?
+      ;;
+    verify|--verify)
+      local key; key="$(read_key || true)"
+      if [ -z "$key" ]; then
+        die "No stored key. Run 'zcl config' first."
+      fi
+      say "Stored key: ${key:0:5}...${key: -4} (${#key} chars)"
+      if validate_key_format "$key"; then
+        say "Format:  ✓"
+      else
+        warn "Format:  ✗ (unusual format)"
+      fi
+      verify_key_api "$key" || true
+      exit 0
+      ;;
+    show-config|--show-config|show|--show)
+      show_config
+      ;;
+    help|--help|-h)
+      show_help
+      ;;
+  esac
+}
+
+# ============================================================================
+# MAIN
+# ============================================================================
+
+# Parse zcl-specific flags from the front of the argument list.
+DRY_RUN=0
+PASSTHROUGH_ARGS=()
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --help|help|-h)
+      show_help
+      ;;
+    --version)
+      echo "zcl v$VERSION"
+      exit 0
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    --verbose)
+      ZCL_VERBOSE=1
+      export ZCL_VERBOSE
+      shift
+      ;;
+    --safe)
+      ZCL_SAFE=1
+      export ZCL_SAFE
+      shift
+      ;;
+    --)
+      shift
+      PASSTHROUGH_ARGS+=("$@")
+      break
+      ;;
+    config|--config|set-key|--set-key|change|--change|change-key|--change-key|\
+    reset|--reset|update|--update|upgrade|--upgrade|\
+    verify|--verify|show-config|--show-config|show|--show)
+      handle_subcommand "$@"
+      ;;
+    *)
+      PASSTHROUGH_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+debug "zcl v$VERSION starting"
+debug "CONFIG_FILE=$CONFIG_FILE"
+debug "DRY_RUN=$DRY_RUN"
+debug "ZCL_SAFE=${ZCL_SAFE:-0}"
+debug "ZCL_VERBOSE=${ZCL_VERBOSE:-0}"
+
+# --- resolve the key ---------------------------------------------------------
+KEY="$(read_key || true)"
+debug "Key from config: ${KEY:+found (${#KEY} chars)}"
+
+# Not stored yet: take it from the environment if it's there...
+if [ -z "${KEY:-}" ] && [ -n "${ZAI_API_KEY:-}" ]; then
+  KEY="$(trim "$ZAI_API_KEY")"
+  say "Using ZAI_API_KEY from environment; saving for next time."
+  if ! save_key "$KEY"; then
+    warn "Could not save key to $CONFIG_FILE (disk full or permission issue?)."
+    warn "Key will only be used for this session."
+  fi
+fi
+
+# ...otherwise ask for it interactively.
+if [ -z "${KEY:-}" ]; then
+  interactive_setup
+  KEY="$(read_key || true)"
+fi
+
+if [ -z "${KEY:-}" ]; then
+  die "No API key available. Run 'zcl config' to set one."
+fi
+
+debug "Key resolved (${#KEY} chars)"
+
+# --- resolve model overrides -------------------------------------------------
+# Priority: env var > config file > built-in default
+MODEL="${ZCL_MODEL:-$(read_config "ZCL_MODEL" 2>/dev/null || echo "$DEFAULT_MODEL")}"
+HAIKU_MODEL="${ZCL_HAIKU_MODEL:-$(read_config "ZCL_HAIKU_MODEL" 2>/dev/null || echo "$DEFAULT_HAIKU_MODEL")}"
+SUBAGENT_MODEL="${ZCL_SUBAGENT_MODEL:-$(read_config "ZCL_SUBAGENT_MODEL" 2>/dev/null || echo "$DEFAULT_SUBAGENT_MODEL")}"
+EFFORT="${ZCL_EFFORT:-$(read_config "ZCL_EFFORT" 2>/dev/null || echo "$DEFAULT_EFFORT")}"
+TIMEOUT_MS="${ZCL_TIMEOUT_MS:-$(read_config "ZCL_TIMEOUT_MS" 2>/dev/null || echo "$DEFAULT_TIMEOUT_MS")}"
+AUTO_COMPACT="${ZCL_AUTO_COMPACT:-$(read_config "ZCL_AUTO_COMPACT" 2>/dev/null || echo "$DEFAULT_AUTO_COMPACT")}"
+SAFE_MODE="${ZCL_SAFE:-$(read_config "ZCL_SAFE" 2>/dev/null || echo "0")}"
+
+debug "MODEL=$MODEL"
+debug "HAIKU_MODEL=$HAIKU_MODEL"
+debug "SUBAGENT_MODEL=$SUBAGENT_MODEL"
+debug "EFFORT=$EFFORT"
+debug "TIMEOUT_MS=$TIMEOUT_MS"
+debug "AUTO_COMPACT=$AUTO_COMPACT"
+debug "SAFE_MODE=$SAFE_MODE"
+
+# --- dry-run early exit ------------------------------------------------------
+if [ "$DRY_RUN" = "1" ]; then
+  do_dry_run "${PASSTHROUGH_ARGS[@]}"
+fi
+
+# --- launch ------------------------------------------------------------------
+if ! command -v claude >/dev/null 2>&1; then
+  die "claude CLI not found on PATH.\nInstall Claude Code first: https://docs.claude.com/en/docs/claude-code"
+fi
+
+export ANTHROPIC_BASE_URL="https://api.z.ai/api/coding/paas/v4"
+export ANTHROPIC_AUTH_TOKEN="$KEY"
+export ANTHROPIC_MODEL="$MODEL"
+export ANTHROPIC_DEFAULT_OPUS_MODEL="$MODEL"
+export ANTHROPIC_DEFAULT_SONNET_MODEL="$MODEL"
+export ANTHROPIC_DEFAULT_HAIKU_MODEL="$HAIKU_MODEL"
+export CLAUDE_CODE_SUBAGENT_MODEL="$SUBAGENT_MODEL"
+export CLAUDE_CODE_EFFORT_LEVEL="$EFFORT"
+export API_TIMEOUT_MS="$TIMEOUT_MS"
+export CLAUDE_CODE_AUTO_COMPACT_WINDOW="$AUTO_COMPACT"
+
+debug "Environment variables set. Launching claude..."
+debug "ANTHROPIC_BASE_URL=$ANTHROPIC_BASE_URL"
+debug "ANTHROPIC_MODEL=$ANTHROPIC_MODEL"
+debug "API_TIMEOUT_MS=$API_TIMEOUT_MS"
+
+if [ "$SAFE_MODE" = "1" ]; then
+  say "Running in safe mode (permission prompts enabled)."
+  exec claude "${PASSTHROUGH_ARGS[@]}"
+else
+  exec claude --dangerously-skip-permissions "${PASSTHROUGH_ARGS[@]}"
+fi

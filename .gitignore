@@ -1,0 +1,14 @@
+# Config (user data — never commit)
+.config/
+*.local
+
+# Test artifacts
+tests/*.log
+tests/*.trs
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
